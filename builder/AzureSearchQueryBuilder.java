@@ -12,10 +12,10 @@ public class AzureSearchQueryBuilder {
 
         for (int i = 0; i < filters.size(); i++) {
             FilterDetail f = filters.get(i);
-            query.append(toExpression(f));
+            query.append(toODataExpression(f));
 
             if (i < filters.size() - 1) {
-                // Lowercase AND/OR per OData spec
+                // AND has precedence over OR; convert logicalOperator to lowercase for OData
                 query.append(" ").append(f.getLogicalOperator().toLowerCase()).append(" ");
             }
         }
@@ -23,7 +23,7 @@ public class AzureSearchQueryBuilder {
         return "(" + query.toString() + ")";
     }
 
-    private static String toExpression(FilterDetail filter) {
+    private static String toODataExpression(FilterDetail filter) {
         String field = filter.getFieldName();
         String op = filter.getOperator().toUpperCase();
 
@@ -41,17 +41,19 @@ public class AzureSearchQueryBuilder {
             case "<=":
                 return "(" + field + " le " + filter.getValues().get(0) + ")";
             case "IN":
+                // OData uses `in` keyword for multiple values
                 String inList = filter.getValues().stream()
                         .map(v -> "'" + v + "'")
                         .collect(Collectors.joining(", "));
                 return "(" + field + " in (" + inList + "))";
             case "NOT IN":
+                // Azure Search does not support NOT IN directly, use not (field in (...))
                 String notInList = filter.getValues().stream()
                         .map(v -> "'" + v + "'")
                         .collect(Collectors.joining(", "));
-                // Azure Search doesn't support NOT IN directly
                 return "(not (" + field + " in (" + notInList + ")))";
             default:
+                // fallback to equality
                 return "(" + field + " eq '" + filter.getValues().get(0) + "')";
         }
     }
