@@ -1,0 +1,237 @@
+openapi: 3.0.3
+info:
+  title: Campaign API
+  version: 1.0.0
+paths:
+  /campaigns/create:
+    post:
+      summary: Create Campaign
+      operationId: createCampaign
+      description: |
+        Creates a new campaign with given details such as title, description,
+        reviewers, published date, expiration date, and filter aggregator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampaignRequest"
+      responses:
+        '201':
+          description: Campaign created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCampaignResponse"
+
+  /campaigns:
+    get:
+      summary: Get Campaigns
+      operationId: getCampaigns
+      parameters:
+        - name: publishedDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: expirationDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: Product
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+
+  /campaigns/submit:
+    post:
+      summary: Submit Campaign
+      operationId: submitCampaign
+      parameters:
+        - name: publishedDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: expirationDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: Product
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Campaign submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmittedCampaign"
+
+  /campaigns/review:
+    post:
+      summary: Review Campaign
+      operationId: reviewCampaign
+      description: |
+        Reviews a campaign by providing status, comments, and reviewer feedback.
+        Requires bearer token and product header.
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          example: "Bearer <JWT token>"
+        - name: Product
+          in: header
+          required: true
+          schema:
+            type: string
+          example: "MyProduct"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewCampaignRequest"
+      responses:
+        '200':
+          description: Campaign reviewed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewedCampaign"
+        '400':
+          description: Invalid request payload
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    CreateCampaignRequest:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        reviewers: { type: array, items: { type: string } }
+        publishedDate: { type: string, format: date-time }
+        expirationDate: { type: string, format: date-time }
+        filterAggregator: { $ref: "#/components/schemas/FilterAggregator" }
+
+    CreateCampaignResponse:
+      type: object
+      properties:
+        campaignId: { type: string }
+
+    Campaign:
+      type: object
+      properties:
+        campaignId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        reviewers: { type: array, items: { type: string } }
+        publishedDate: { type: string, format: date-time }
+        expirationDate: { type: string, format: date-time }
+        filterAggregator: { $ref: "#/components/schemas/FilterAggregator" }
+
+    SubmittedCampaign:
+      allOf:
+        - $ref: "#/components/schemas/Campaign"
+        - type: object
+          properties:
+            status:
+              type: string
+              example: "SUBMITTED"
+
+    ReviewCampaignRequest:
+      type: object
+      required:
+        - status
+        - reviewComments
+        - reviewer1
+        - reviewer1Date
+        - reviewer2
+        - reviewer2Date
+      properties:
+        status:
+          type: string
+          example: "APPROVED"
+        reviewComments:
+          type: string
+          example: "Campaign looks good, approved with minor changes."
+        reviewer1:
+          type: string
+          example: "reviewer1@example.com"
+        reviewer1Date:
+          type: string
+          format: date-time
+          example: "2025-09-18T15:00:00Z"
+        reviewer2:
+          type: string
+          example: "reviewer2@example.com"
+        reviewer2Date:
+          type: string
+          format: date-time
+          example: "2025-09-19T11:00:00Z"
+
+    ReviewedCampaign:
+      allOf:
+        - $ref: "#/components/schemas/Campaign"
+        - type: object
+          properties:
+            status:
+              type: string
+              example: "APPROVED"
+            reviewComments:
+              type: string
+              example: "Campaign looks good, approved with minor changes."
+            reviewer1:
+              type: string
+              example: "reviewer1@example.com"
+            reviewer1Date:
+              type: string
+              format: date-time
+            reviewer2:
+              type: string
+              example: "reviewer2@example.com"
+            reviewer2Date:
+              type: string
+              format: date-time
+
+    FilterAggregator:
+      type: object
+      properties:
+        type: { type: string }
+        filters:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              value: { type: string }
