@@ -9,7 +9,8 @@ import java.util.List;
 
 public class AzureSearchDemo {
     public static void main(String[] args) {
-        // Example filters
+
+        // Filters
         FilterDetail f1 = new FilterDetail();
         f1.setFieldName("category");
         f1.setOperator("IN");
@@ -24,16 +25,20 @@ public class AzureSearchDemo {
 
         List<FilterDetail> filters = Arrays.asList(f1, f2);
 
+        // Sort by fields
+        List<String> orderBy = Arrays.asList("price desc", "rating asc");
+
+        // Select only these fields
+        List<String> selectFields = Arrays.asList("id", "category", "price", "rating");
+
         FilterGenerationService service = new FilterGenerationService();
+        SearchOptions options = service.generateAzureSearchOptions(filters, orderBy, selectFields);
 
-        // Generate Azure Search options
-        SearchOptions options = service.generateAzureSearchOptions(filters);
-
-        // Suppose client is already initialized
+        // Initialize Azure Search client (already configured)
         SearchAsyncClient client = /* injected or created */;
         SearchPagedFlux results = client.search("*", options);
 
-        // Subscribe to async results
+        // Subscribe to results
         results.subscribe(r -> {
             SearchResult result = r;
             System.out.println("Document: " + result.getDocument());
