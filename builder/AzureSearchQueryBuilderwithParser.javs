@@ -1,0 +1,120 @@
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class AzureSearchQueryBuilder {
+
+    private static final Pattern TOKEN_PATTERN = Pattern.compile(
+            "\\(|\\)|\\bAND\\b|\\bOR\\b|\\bNOT\\b|[<>]=?|!=|=|\\bIN\\b|\\bNOT IN\\b|\\w+|'.*?'|\\d+\\.\\d+|\\d+|,",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    // Map Cosmos-style to Azure Search operators
+    private static final Map<String, String> OPERATOR_MAP = new HashMap<>();
+    static {
+        OPERATOR_MAP.put("=", "eq");
+        OPERATOR_MAP.put("!=", "ne");
+        OPERATOR_MAP.put(">", "gt");
+        OPERATOR_MAP.put(">=", "ge");
+        OPERATOR_MAP.put("<", "lt");
+        OPERATOR_MAP.put("<=", "le");
+        OPERATOR_MAP.put("IN", "in");
+        OPERATOR_MAP.put("NOT IN", "not in");
+        OPERATOR_MAP.put("LIKE", "search.ismatch"); // Azure Search doesn’t have LIKE, needs ismatch
+    }
+
+    public static String buildAzureSearchFilter(String userExpression) {
+        String normalized = normalizeExpression(userExpression);
+        return translateTokens(normalized);
+    }
+
+    private static String normalizeExpression(String expr) {
+        expr = expr.replaceAll("\\s+", " "); // collapse multiple spaces
+        return expr.trim();
+    }
+
+    private static String translateTokens(String expr) {
+        Matcher matcher = TOKEN_PATTERN.matcher(expr);
+        StringBuilder sb = new StringBuilder();
+        String lastToken = null;
+        boolean inValueList = false;
+
+        while (matcher.find()) {
+            String token = matcher.group();
+
+            if (token.equalsIgnoreCase("AND") || token.equalsIgnoreCase("OR") || token.equalsIgnoreCase("NOT")) {
+                sb.append(token.toLowerCase()).append(" ");
+            } else if (token.equals("(")) {
+                sb.append("(").append(" ");
+                if ("IN".equalsIgnoreCase(lastToken)) {
+                    inValueList = true;
+                }
+            } else if (token.equals(")")) {
+                sb.append(")").append(" ");
+                inValueList = false;
+            } else if (isOperator(token)) {
+                String mapped = OPERATOR_MAP.getOrDefault(token.toUpperCase(), token.toLowerCase());
+                sb.append(mapped).append(" ");
+            } else if (token.equals(",")) {
+                sb.append(", ");
+            } else if (isNumber(token) || isBoolean(token)) {
+                sb.append(token).append(" ");
+            } else if (isQuoted(token)) {
+                sb.append(token).append(" ");
+            } else {
+                // Decide if FIELD or VALUE
+                if (lastToken != null && isOperator(lastToken)) {
+                    // VALUE
+                    if (looksLikeNumber(token) || isBoolean(token)) {
+                        sb.append(token).append(" ");
+                    } else {
+                        sb.append("'").append(token).append("' ");
+                    }
+                } else if (inValueList) {
+                    // VALUE in IN list
+                    if (looksLikeNumber(token) || isBoolean(token)) {
+                        sb.append(token).append(" ");
+                    } else {
+                        sb.append("'").append(token).append("' ");
+                    }
+                } else {
+                    // FIELD
+                    sb.append(token).append(" ");
+                }
+            }
+
+            lastToken = token;
+        }
+        return sb.toString().trim();
+    }
+
+    private static boolean isOperator(String token) {
+        return OPERATOR_MAP.containsKey(token.toUpperCase());
+    }
+
+    private static boolean isNumber(String token) {
+        return token.matches("\\d+(\\.\\d+)?([lLdDfF])?");
+    }
+
+    private static boolean looksLikeNumber(String token) {
+        return token.matches("\\d+(\\.\\d+)?");
+    }
+
+    private static boolean isBoolean(String token) {
+        return token.equalsIgnoreCase("true") || token.equalsIgnoreCase("false");
+    }
+
+    private static boolean isQuoted(String token) {
+        return token.startsWith("'") && token.endsWith("'");
+    }
+
+    // Demo
+    public static void main(String[] args) {
+        String input = "((age > 80 and city IN (Pune, Mumbai)) or (pin = 52356 and work=Pune)) and maritalstatus=Married and status NOT IN (Active, Blocked)";
+
+        String azureFilter = buildAzureSearchFilter(input);
+
+        System.out.println("Input: " + input);
+        System.out.println("Azure Search Filter: " + azureFilter);
+    }
+}
